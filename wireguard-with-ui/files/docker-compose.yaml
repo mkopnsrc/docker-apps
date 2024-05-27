@@ -1,0 +1,68 @@
+version: "3"
+
+services:
+
+  # WireGuard VPN service
+  wireguard:
+    image: linuxserver/wireguard:latest
+    container_name: wireguard
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - /opt/docker/wireguard/config:/config
+    ports:
+      # Port for WireGuard-UI
+      - "5000:5000"
+      # Port of the WireGuard VPN server
+      - "51820:51820/udp"
+    restart: unless-stopped
+
+  # WireGuard-UI service
+  wireguard-ui:
+    image: ngoduykhanh/wireguard-ui:latest
+    container_name: wireguard-ui
+    depends_on:
+      - wireguard
+    cap_add:
+      - NET_ADMIN
+    # Use the network of the 'wireguard' service
+    # This enables to show active clients in the status page
+    network_mode: service:wireguard
+    environment:
+      - WGUI_SERVER_INTERFACE_ADDRESSES
+      - WGUI_SERVER_LISTEN_PORT
+      - WGUI_ENDPOINT_ADDRESS
+      - WGUI_SERVER_POST_UP_SCRIPT="iptables -A FORWARD -i wg0 -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE"
+      - WGUI_SERVER_POST_DOWN_SCRIPT="iptables -D FORWARD -i wg0 -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE"
+      - WGUI_DNS=1.1.1.1,8.8.8.8
+      - WGUI_DEFAULT_CLIENT_ALLOWED_IPS=0.0.0.0/0
+      - WGUI_DEFAULT_CLIENT_EXTRA_ALLOWED_IPS
+      - WGUI_DEFAULT_CLIENT_USE_SERVER_DNS=true
+      - WGUI_DEFAULT_CLIENT_ENABLE_AFTER_CREATION=true
+      - SESSION_SECRET=$(openssl rand -base64 30)
+      - WGUI_USERNAME=admin
+      - WGUI_PASSWORD=admin@wireguard
+      - WG_CONF_TEMPLATE
+      - WGUI_MANAGE_START=true
+      - WGUI_MANAGE_RESTART=true
+      - WGUI_LOG_LEVEL
+      - EMAIL_FROM_ADDRESS
+      - EMAIL_FROM_NAME
+      - SMTP_HOSTNAME
+      - SMTP_PORT
+      - SMTP_USERNAME
+      - SMTP_PASSWORD
+      - SMTP_AUTH_TYPE
+      - SMTP_ENCRYPTION
+      - SENDGRID_API_KEY
+      - TELEGRAM_TOKEN
+      - TELEGRAM_ALLOW_CONF_REQUEST
+      - TELEGRAM_FLOOD_WAIT
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: 50m
+    volumes:
+      - /opt/docker/wireguard/db:/app/db
+      - /opt/docker/wireguard/config:/etc/wireguard
