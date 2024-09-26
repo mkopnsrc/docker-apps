@@ -1,0 +1,72 @@
+---
+services:
+  piper:
+    image: homeassistant/amd64-addon-piper:latest
+    container_name: piper
+    entrypoint: python3
+    command: >
+      -m wyoming_piper
+      --piper '/usr/share/piper/piper'
+      --uri 'tcp://0.0.0.0:10200'
+      --length-scale "1"
+      --noise-scale "0.667"
+      --speaker "0"
+      --voice "en_US-lessac-medium"
+      --max-piper-procs "1"
+      --data-dir /data
+      --data-dir /share/piper
+      --download-dir /data
+      --debug
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /opt/docker/volumes/wyoming-piper/data:/data
+    ports:
+      - 10200:10200
+    restart: unless-stopped
+  #========================================================
+  faster-whisper:
+    image: homeassistant/amd64-addon-whisper:latest
+    container_name: faster-whisper
+    entrypoint: python3  
+    command: >  
+      -m wyoming_faster_whisper 
+      --uri tcp://0.0.0.0:10300 
+      --model distil-large-v2 
+      --beam-size 1 
+      --language en 
+      --data-dir /data 
+      --download-dir /data 
+      --debug
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /opt/docker/volumes/wyoming-whisper/data:/data
+    ports:
+      - 10300:10300
+    restart: unless-stopped
+  #========================================================
+  openwakeword:
+    image: homeassistant/amd64-addon-openwakeword:latest
+    container_name: openwakeword
+    entrypoint: python3
+    command: >
+      -m wyoming_openwakeword 
+      --uri 'tcp://0.0.0.0:10400' 
+      --preload-model "hey_jarvis" 
+      --custom-model-dir /share/openwakeword
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/New_York
+    volumes:
+      - /opt/docker/volumes/wyoming-openwakeword/data:/data
+      - /opt/docker/volumes/wyoming-openwakeword/custom-models:/share/openwakeword
+    ports:
+      - 10400:10400
+    restart: unless-stopped
+  #========================================================
