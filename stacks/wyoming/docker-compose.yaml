@@ -1,5 +1,6 @@
 ---
 services:
+  # Wyoming Piper service
   piper:
     image: homeassistant/amd64-addon-piper:latest
     container_name: piper
@@ -27,6 +28,7 @@ services:
       - 10200:10200
     restart: unless-stopped
   #========================================================
+  # Wyoming Whisper (faster) service
   faster-whisper:
     image: homeassistant/amd64-addon-whisper:latest
     container_name: faster-whisper
@@ -50,6 +52,7 @@ services:
       - 10300:10300
     restart: unless-stopped
   #========================================================
+  # Rhasspy OpenWakeWord service
   openwakeword:
     image: homeassistant/amd64-addon-openwakeword:latest
     container_name: openwakeword
