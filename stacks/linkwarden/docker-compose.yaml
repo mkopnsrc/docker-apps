@@ -71,7 +71,7 @@ services:
       #- "traefik.http.middlewares.realip.headers.customrequestheaders.X-Real-IP=CF-Connecting-IP"
       #- "traefik.http.middlewares.realip.headers.customrequestheaders.X-Forwarded-For=X-Forwarded-For"
       - "traefik.http.middlewares.cloudflarewarp.plugin.cloudflarewarp.disableDefault=false"
-      - "traefik.http.middlewares.trusted-network.ipwhitelist.sourcerange=127.0.0.1/32,192.168.16.1/24,69.122.231.124"
+      - "traefik.http.middlewares.trusted-network.ipwhitelist.sourcerange=127.0.0.1/32,192.168.16.1/24"
       #- "traefik.http.middlewares.trusted-network.ipwhitelist.ipstrategy.depth=3"
       - "traefik.http.middlewares.traefik-ratelimit.ratelimit.average=100"
       - "traefik.http.middlewares.traefik-ratelimit.ratelimit.burst=200"
