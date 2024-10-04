@@ -18,23 +18,33 @@ services:
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"  # Ensure redirection uses HTTPS
       - "--entrypoints.web.http.redirections.entrypoint.permanent=true"
       #- "--entrypoints.websecure.forwardedHeaders.trustedIPs=$CLOUDFLARE_IPS,$LOCAL_IPS"
-      #- "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"  # Enable TLS challenge for Let's Encrypt certificates
-      - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"  # Enable DNS challenge for Let's Encrypt certificates
-      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"  # Use Cloudflare for DNS challenge
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"  # Enable TLS challenge for Let's Encrypt certificates
+        #- "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"  # Enable DNS challenge for Let's Encrypt certificates
+        #- "--certificatesresolvers.letsencrypt.acme.dnschallenge.provider=cloudflare"  # Use Cloudflare for DNS challenge
       - "--certificatesresolvers.letsencrypt.acme.email=support@${ROOT_DOMAIN}"  # Email for Let's Encrypt notifications
+      - "--certificatesresolvers.letsencrypt.acme.keytype=RSA4096"  # Let's Encrypt KeyType
       - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"  # Path to store Let's Encrypt certificates
       - "--entryPoints.https.transport.respondingTimeouts.idleTimeout=7200"
       - "--entryPoints.https.transport.respondingTimeouts.readTimeout=7200"
       - "--entryPoints.https.transport.respondingTimeouts.writeTimeout=7200"
-      #- "--experimental.plugins.cloudflarewarp.modulename=github.com/PseudoResonance/cloudflarewarp"
+      - "--experimental.localPlugins.cloudflarewarp.modulename=github.com/PseudoResonance/cloudflarewarp" # Load from LocalPlugins dir
       #- "--experimental.plugins.cloudflarewarp.version=v1.4.0"
       # Cloudflare Public Proxy TrustedIPs
-      - "--entrypoints.web.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/12,172.64.0.0/13,131.0.72.0/22"
-      - "--entrypoints.websecure.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/12,172.64.0.0/13,131.0.72.0/22"
+      - "--entrypoints.web.forwardedHeaders.trustedIPs=127.0.0.1/32,192.168.16.1/24,173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
+      - "--entrypoints.websecure.forwardedHeaders.trustedIPs=127.0.0.1/32,192.168.16.1/24,173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22"
+      - '--experimental.localPlugins.fail2ban.modulename=github.com/tomMoulard/fail2ban' # Load from LocalPlugins dir
+        #- '--experimental.localPlugins.fail2ban.version=v0.8.3'
+      - "--experimental.localPlugins.traefik-modsecurity-plugin.modulename=github.com/acouvreur/traefik-modsecurity-plugin" # Load from LocalPlugins dir
+        #- "--experimental.localPlugins.traefik-modsecurity-plugin.version=v1.3.0"
+      - "--providers.file.directory=/dynamic_conf/"
+      - "--providers.file.watch=true"
+      - "--ping"
       - "--log=true"
       - "--log.filePath=/logs/traefik.log"
       - "--accessLog=true"
       - "--accessLog.filePath=/logs/access.log"
+      - "--accesslog.addinternals"
+      - "--metrics.addinternals"
     ports:
       - "80:80"  # Expose HTTP port 80
       - "443:443"  # Expose HTTPS port 443
@@ -42,7 +52,11 @@ services:
     volumes:
       - traefik-logs:/logs
       - letsencrypt:/letsencrypt
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /run/docker.sock:/var/run/docker.sock
+      - './dynamic_conf:/dynamic_conf'
+      - './plugins/fail2ban:/plugins-local/src/github.com/tomMoulard/fail2ban'
+      - './plugins/waf:/plugins-local/src/github.com/acouvreur/traefik-modsecurity-plugin'
+      - './plugins/cf-warp:/plugins-local/src/github.com/PseudoResonance/cloudflarewarp'
     labels:
       - "traefik.enable=true"  # Enable Traefik for this service
       - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik1.${ROOT_DOMAIN}`)"  # Define routing rule for Traefik dashboard
@@ -51,71 +65,101 @@ services:
       - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"  # Use the HTTPS entrypoint for the dashboard
       - "traefik.http.routers.traefik-dashboard.tls=true"  # Enable TLS (HTTPS) for the dashboard
       - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"  # Use Let's Encrypt DNS challenge for certificate
-      - "traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_BASIC_AUTH}"  # Secure the Traefik dashboard with Basic Auth
       - "traefik.http.routers.traefik-dashboard.middlewares=dashboard-auth"  # Apply Basic Auth middleware to the dashboard
-      - "traefik.http.middlewares.realip.headers.customrequestheaders.X-Real-IP=X-Forwarded-For"
-      - "traefik.http.middlewares.realip.headers.customrequestheaders.X-Forwarded-For=X-Forwarded-For"
+      - "traefik.http.routers.traefik-dashboard.middlewares=cloudflarewarp,traefik-ratelimit,defaultHeaders,trusted-network,basic-auth"
+      - "traefik.http.middlewares.basic-auth.basicauth.users=${TRAEFIK_BASIC_AUTH}"  # Secure the Traefik dashboard with Basic Auth
+      #- "traefik.http.middlewares.realip.headers.customrequestheaders.X-Real-IP=CF-Connecting-IP"
+      #- "traefik.http.middlewares.realip.headers.customrequestheaders.X-Forwarded-For=X-Forwarded-For"
+      - "traefik.http.middlewares.cloudflarewarp.plugin.cloudflarewarp.disableDefault=false"
+      - "traefik.http.middlewares.trusted-network.ipwhitelist.sourcerange=127.0.0.1/32,192.168.16.1/24,69.122.231.124"
+      #- "traefik.http.middlewares.trusted-network.ipwhitelist.ipstrategy.depth=3"
       - "traefik.http.middlewares.traefik-ratelimit.ratelimit.average=100"
       - "traefik.http.middlewares.traefik-ratelimit.ratelimit.burst=200"
       - "traefik.http.middlewares.traefik-ratelimit.ratelimit.period=1m"
-      - "traefik.http.middlewares.traefik-ratelimit.ratelimit.sourcecriterion.ipstrategy.excludedips=127.0.0.1/32,192.168.1.1/24,172.16.1.1/24"
-      - "traefik.http.middlewares.testHeader.headers.framedeny=true"
-      - "traefik.http.middlewares.testHeader.headers.browserxssfilter=true"
-      #- "traefik.http.middlewares.cloudflarewarp.plugin.cloudflarewarp.disableDefault=false"
+      - "traefik.http.middlewares.traefik-ratelimit.ratelimit.sourcecriterion.ipstrategy.excludedips=127.0.0.1/32,192.168.16.1/24"
+      - "traefik.http.middlewares.traefik-inflightreq.inflightreq.amount=10"
+      - "traefik.http.middlewares.defaultHeaders.headers.framedeny=true"
+      - "traefik.http.middlewares.defaultHeaders.headers.browserxssfilter=true"
+      - "traefik.http.middlewares.defaultHeaders.headers.accesscontrolmaxage=1000"
+      - "traefik.http.middlewares.defaultHeaders.headers.accesscontrolalloworiginlist=https://*.opnsrc.dev"
+      - "traefik.http.middlewares.defaultHeaders.headers.stsSeconds=31536000"
+      - "traefik.http.middlewares.defaultHeaders.headers.stsIncludeSubdomains=true"
+      - "traefik.http.middlewares.defaultHeaders.headers.stsPreload=true"
+      - "traefik.http.middlewares.defaultHeaders.headers.forceSTSHeader=true"
+      - "traefik.http.middlewares.defaultHeaders.headers.contentSecurityPolicy=base-uri 'self'; form-action 'self'; default-src 'self'; frame-ancestors 'none'; connect-src 'self'"
+      - "traefik.http.middlewares.defaultHeaders.headers.referrerPolicy=same-origin"
+      - "traefik.http.middlewares.defaultHeaders.headers.permissionsPolicy=microphone=(), geolocation=()"
+      - "traefik.http.middlewares.defaultHeaders.headers.contentTypeNosniff=true"
+      - "traefik.http.middlewares.defaultHeaders.headers.accesscontrolallowmethods=GET,HEAD,POST,PUT,DELETE"
+      - "traefik.http.middlewares.defaultHeaders.headers.customFrameOptionsValue=SAMEORIGIN"
+      - "traefik.http.middlewares.defaultHeaders.headers.customresponseheaders.X-Powered-By=DOGECOIN"
+      - "traefik.http.middlewares.testContent.contenttype.autodetect=false"
+      - "traefik.http.middlewares.waf.plugin.traefik-modsecurity-plugin.modSecurityUrl=http://waf:80"
+      - "traefik.http.middlewares.waf.plugin.traefik-modsecurity-plugin.maxBodySize=10485760"
+      - "traefik.http.middlewares.waf.plugin.traefik-modsecurity-plugin.jailEnabled=true"
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'traefik', 'healthcheck', '--ping']
     networks:
-      - net_linkwarden
+      - net_proxy
 
   # Linkwarden service
   linkwarden:
     image: ghcr.io/linkwarden/linkwarden:latest
-    deploy:
-      mode: replicated
-      replicas: 2  # Scale Linkwarden to 2 replicas
+    #deploy:
+      #mode: replicated
+      #replicas: 2  # Scale Linkwarden to 2 replicas
     container_name: linkwarden
-    labels:
-      - "traefik.enable=true"  # Enable Traefik for Linkwarden
-      - "traefik.http.services.linkwarden.loadbalancer.server.port=3000"  # Linkwarden runs on port 3000 internally
-      - "traefik.http.services.linkwarden.loadbalancer.server.scheme=http"
-      - "traefik.http.services.linkwarden.loadbalancer.healthcheck.interval=60s"
-      - "traefik.http.services.linkwarden.loadbalancer.healthcheck.timeout=10s"
-      - "traefik.http.routers.linkwarden.rule=Host(`links.${ROOT_DOMAIN}`)"  # Define routing rule for Linkwarden
-      - "traefik.http.routers.linkwarden.entrypoints=websecure"  # Use the HTTPS entrypoint for Linkwarden
-      - "traefik.http.routers.linkwarden.tls=true"  # Enable TLS (HTTPS) for Linkwarden
-      - "traefik.http.routers.linkwarden.tls.certresolver=letsencrypt"  # Use Let's Encrypt DNS challenge for certificate
-      #- "traefik.http.middlewares.linkwarden-redirect.redirectscheme.scheme=https"  # Redirect HTTP to HTTPS
-      #- "traefik.http.routers.linkwarden.middlewares=linkwarden-redirect"  # Apply redirection middleware to Linkwarden
-      - "com.centurylinklabs.watchtower.enable=true"
     env_file: .env
     environment:
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@linkwarden-db:5432/linkwarden
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@pgdb:5432/linkwarden
       - PORT=3000
       - NEXT_PUBLIC_DISABLE_REGISTRATION=
       - PAGINATION_TAKE_COUNT=20
       - AUTOSCROLL_TIMEOUT=0
       - STORAGE_FOLDER=/data
       - TZ=America/New_York
+    labels:
+      - "traefik.enable=true"  # Enable Traefik for Linkwarden
+      - "traefik.docker.network=net_proxy" # Explicitly define which network to use to connect to Traefic
+      - "traefik.http.services.linkwarden.loadbalancer.server.port=3000"  # Linkwarden runs on port 3000 internally
+      - "traefik.http.services.linkwarden.loadbalancer.server.scheme=http"
+      - "traefik.http.services.linkwarden.loadbalancer.healthcheck.interval=60s"
+      - "traefik.http.services.linkwarden.loadbalancer.healthcheck.timeout=10s"
+      - "traefik.http.routers.linkwarden.rule=Host(`links.${ROOT_DOMAIN}`)"  # Define routing rule for Linkwarden
+        #- "traefik.http.routers.linkwarden.rule=PathPrefix(`/`)"  # Define routing rule for Linkwarden
+      - "traefik.http.routers.linkwarden.entrypoints=websecure"  # Use the HTTPS entrypoint for Linkwarden
+      - "traefik.http.routers.linkwarden.tls=true"  # Enable TLS (HTTPS) for Linkwarden
+      - "traefik.http.routers.linkwarden.tls.certresolver=letsencrypt"  # Use Let's Encrypt DNS challenge for certificate
+      #- "traefik.http.middlewares.linkwarden-redirect.redirectscheme.scheme=https"  # Redirect HTTP to HTTPS
+      #- "traefik.http.routers.linkwarden.middlewares=linkwarden-redirect"  # Apply redirection middleware to Linkwarden
+      - "com.centurylinklabs.watchtower.enable=true"
+      - "traefik.http.routers.linkwarden.middlewares=cloudflarewarp,traefik-ratelimit,defaultHeaders,waf@docker"
+        #- "traefik.http.routers.linkwarden.middlewares=waf@docker"
     volumes:
       - linkwarden-data:/data
     restart: unless-stopped
     depends_on:
-      linkwarden-db:
+      pgdb:
         condition: service_healthy
     networks:
       - net_linkwarden
+      - net_proxy
 
   # PostgreSQL for Linkwarden
-  linkwarden-db:
+  pgdb:
     image: docker.io/library/postgres
-    container_name: linkwarden-db
+    container_name: pgdb
     env_file: .env
     environment:
       - TZ=America/New_York
     volumes:
-      - linkwarden-db:/var/lib/postgresql/data
+      - pgdb:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "pg_isready" ]
+      test: [ "CMD", "pg_isready", "-q", "-d", "linkwarden", "-U", "postgres" ]
+      start_period: 30s
+      start_interval: 2s
       interval: 10s
       timeout: 5s
       retries: 5
@@ -136,13 +180,41 @@ services:
       - WATCHTOWER_POLL_INTERVAL=300  # Poll for updates every 5 minutes (300 seconds)
       - TZ=America/New_York
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - /run/docker.sock:/var/run/docker.sock
+
+  waf:
+    image: owasp/modsecurity-crs:4-apache-202404070904
+    container_name: waf
+    environment:
+      - PARANOIA=1
+      - ANOMALY_INBOUND=10
+      - ANOMALY_OUTBOUND=5
+      - MODSEC_RULE_ENGINE=On
+      - REPORTING_LEVEL=2
+      - BACKEND=http://dummy
+    #labels:
+    #  - "traefik.enable=true"  # Enable Traefik for Linkwarden
+    #  - "traefik.http.services.waf.loadbalancer.server.port=80"  # Linkwarden runs on port 3000 internally
+    #  - "traefik.http.services.waf.loadbalancer.server.scheme=http"
+    networks:
+      - net_proxy
+
+  dummy:
+    image: containous/whoami
+    container_name: dummy
+    networks:
+      - net_proxy
 
 volumes:
   traefik-logs:
-  linkwarden-db:
+  pgdb:
   linkwarden-data:
   letsencrypt:
+
 networks:
   net_linkwarden:
     driver: bridge
+    external: false
+  net_proxy:
+    driver: bridge
+    external: true
